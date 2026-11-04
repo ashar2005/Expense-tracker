@@ -373,11 +373,12 @@ footer{max-width:1180px;margin:8px auto 32px;padding:0 24px;color:var(--ink-3);f
 
 <script>
 /* ---------- Config ---------- */
-const BACKEND = 'http://127.0.0.1:5000';
-// Served by Flask itself -> same-origin (''). Opened as file:// or from another
-// local server (e.g. Live Server on :5500) -> talk to the Flask backend directly.
-const isLocalDev = ['localhost', '127.0.0.1'].includes(location.hostname) && location.port !== '5000';
-const API_BASE = (location.protocol === 'file:' || isLocalDev) ? BACKEND : '';
+// Deployed Render Backend URL
+const PROD_BACKEND = 'https://expense-tracker-g1q2.onrender.com'; // Replace with your actual Render URL when ready
+const LOCAL_BACKEND = 'http://127.0.0.1:5000';
+
+const isLocalDev = ['localhost', '127.0.0.1'].includes(location.hostname);
+const API_BASE = isLocalDev ? LOCAL_BACKEND : PROD_BACKEND;
 
 const EXPENSE_CATS = ['Food','Transport','Education','Shopping','Bills','Health','Entertainment','Other'];
 const INCOME_CATS  = ['Salary','Business','Freelance','Gift','Other'];
@@ -448,7 +449,6 @@ async function updateCurrencyConversion(target){
   if (target === 'PKR') { applyCurrency('PKR', 1.0); return; }
 
   try {
-    // Convert a large base amount so backend rounding (e.g. 2 decimals) can't wipe out the rate.
     const BASE = 1000000;
     const data = await sendJSON('/api/convert', 'POST', { amount: BASE, currency: target });
     const rate = Number(data.converted_amount) / BASE;
@@ -456,7 +456,7 @@ async function updateCurrencyConversion(target){
     applyCurrency(target, rate);
     toast(`Converted to ${target}`);
   } catch (err) {
-    $('currencySelector').value = previous;   // revert UI, nothing was changed yet
+    $('currencySelector').value = previous;
     toast(`Currency conversion error: ${err.message}`, true);
   }
 }
@@ -472,7 +472,7 @@ async function load(){
       getJSON(`/api/dashboard?month=${month}`),
       getJSON(`/api/transactions?month=${month}`)
     ]);
-    if (seq !== loadSeq) return;               // a newer request superseded this one
+    if (seq !== loadSeq) return;
     state.dash = dash;
     state.tx = tx;
     renderAll();
@@ -639,7 +639,7 @@ document.querySelectorAll('dialog').forEach(d => {
 document.querySelectorAll('.type-toggle button').forEach(b => b.addEventListener('click', () => setTxType(b.dataset.type)));
 
 /* ---------- Forms ---------- */
-const toBase = v => Math.round((v / state.rate) * 100) / 100;   // displayed currency -> stored PKR, 2 dp
+const toBase = v => Math.round((v / state.rate) * 100) / 100;
 
 $('txForm').addEventListener('submit', async e => {
   e.preventDefault();
