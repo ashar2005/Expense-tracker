@@ -373,12 +373,9 @@ footer{max-width:1180px;margin:8px auto 32px;padding:0 24px;color:var(--ink-3);f
 
 <script>
 /* ---------- Config ---------- */
-// Deployed Render Backend URL
-const PROD_BACKEND = 'https://expense-tracker-g1q2.onrender.com'; // Replace with your actual Render URL when ready
-const LOCAL_BACKEND = 'http://127.0.0.1:5000';
-
+// Uses local backend URL when testing locally; uses relative routes ('') when live on Vercel
 const isLocalDev = ['localhost', '127.0.0.1'].includes(location.hostname);
-const API_BASE = isLocalDev ? LOCAL_BACKEND : PROD_BACKEND;
+const API_BASE = isLocalDev ? 'http://127.0.0.1:5000' : '';
 
 const EXPENSE_CATS = ['Food','Transport','Education','Shopping','Bills','Health','Entertainment','Other'];
 const INCOME_CATS  = ['Salary','Business','Freelance','Gift','Other'];
