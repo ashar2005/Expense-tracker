@@ -1,0 +1,7 @@
+flask
+requests
+matplotlib
+pandas
+pytest
+pytest-cov
+radon
