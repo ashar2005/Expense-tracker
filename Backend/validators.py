@@ -1,74 +1,75 @@
-"""Data validation and type parsing utilities for ExpenseMate (Perfective Maintenance)."""
-from datetime import datetime
-from typing import Any, Tuple, Union
+"""Rewritten validation engine for ExpenseMate data schemas."""
+import datetime
+
+VALID_TYPES = {"expense", "income"}
 
 
-def parse_and_validate_amount(amount_input: Union[str, float, int]) -> float:
-    """Perfective Refactoring: Centralized monetary value sanitizer and parser."""
-    try:
-        val = float(amount_input)
-        if val <= 0:
-            raise ValueError("Amount must be greater than zero.")
-        return round(val, 2)
-    except (TypeError, ValueError) as err:
-        raise ValueError(f"Invalid monetary value ({amount_input}): {err}")
-
-
-def is_valid_date(date_str: str) -> bool:
-    """Validate ISO YYYY-MM-DD date string formatting."""
-    if not date_str:
-        return False
-    try:
-        datetime.strptime(date_str, "%Y-%m-%d")
-        return True
-    except ValueError:
-        return False
-
-
-def is_valid_month(month_str: str) -> bool:
-    """Validate ISO YYYY-MM month string formatting."""
-    if not month_str:
-        return False
-    try:
-        datetime.strptime(month_str, "%Y-%m")
-        return True
-    except ValueError:
-        return False
-
-
-def validate_transaction(data: dict[str, Any]) -> Tuple[bool, str]:
-    """Validate incoming transaction payload parameters."""
+def validate_transaction(data):
+    """Validates transaction input payloads.
+    
+    Returns an empty list [] if valid, or a list of descriptive error strings if invalid.
+    """
     if not data:
-        return False, "Payload cannot be empty."
+        return ["amount is required", "category is required", "type must be expense or income", "date is required"]
 
-    try:
-        parse_and_validate_amount(data.get("amount", 0))
-    except ValueError as err:
-        return False, str(err)
+    errors = []
 
-    if not is_valid_date(data.get("date") or data.get("transaction_date") or ""):
-        return False, "Invalid or missing date (expected YYYY-MM-DD)."
+    # 1. Amount validation
+    if "amount" not in data or data["amount"] is None or data["amount"] == "":
+        errors.append("amount is required")
+    else:
+        try:
+            val = float(data["amount"])
+            if val <= 0:
+                errors.append("amount must be positive")
+        except (ValueError, TypeError):
+            errors.append("amount must be a valid number")
 
-    if not data.get("category") or not str(data["category"]).strip():
-        return False, "Category name is required."
+    # 2. Category validation
+    if not data.get("category") or not str(data.get("category")).strip():
+        errors.append("category is required")
 
-    return True, "Valid"
+    # 3. Transaction Type validation
+    if "type" not in data or str(data.get("type")).lower() not in VALID_TYPES:
+        errors.append("type must be expense or income")
+
+    # 4. Date format validation (YYYY-MM-DD)
+    if not data.get("date"):
+        errors.append("date is required")
+    else:
+        try:
+            datetime.date.fromisoformat(str(data["date"]))
+        except ValueError:
+            errors.append("date must be YYYY-MM-DD")
+
+    return errors
 
 
-def validate_budget(data: dict[str, Any]) -> Tuple[bool, str]:
-    """Validate incoming budget creation payload parameters."""
+def validate_budget(data):
+    """Validates category budget limits and target month entries.
+    
+    Returns [] if valid, or a list of descriptive error strings if invalid.
+    """
     if not data:
-        return False, "Payload cannot be empty."
+        return ["category is required", "month is required", "limit is required"]
 
-    try:
-        parse_and_validate_amount(data.get("amount") or data.get("limit") or 0)
-    except ValueError as err:
-        return False, str(err)
+    errors = []
 
-    if not is_valid_month(data.get("month", "")):
-        return False, "Invalid or missing month (expected YYYY-MM)."
+    if not data.get("category") or not str(data.get("category")).strip():
+        errors.append("category is required")
 
-    if not data.get("category") or not str(data["category"]).strip():
-        return False, "Category name is required."
+    if not data.get("month") or not str(data.get("month")).strip():
+        errors.append("month is required")
 
-    return True, "Valid"
+    limit_val = data.get("limit") if "limit" in data else data.get("amount")
+    if limit_val is None or limit_val == "":
+        errors.append("limit is required")
+    else:
+        try:
+            val = float(limit_val)
+            if val <= 0:
+                errors.append("limit must be positive")
+        except (ValueError, TypeError):
+            errors.append("limit must be a valid number")
+
+    return errors

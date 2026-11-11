@@ -1,60 +1,54 @@
-"""Database setup and SQLite initialization for ExpenseMate."""
+"""Database connection and initialization manager."""
 import sqlite3
+import os
+from config import Config
 
-DEFAULT_DB = "expensemate.db"
-
-
-def get_connection(db_path=DEFAULT_DB):
-    """Establish and return a SQLite connection with foreign keys enabled."""
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA foreign_keys = ON;")
+def get_db_connection(db_path=None):
+    """Factory function returning a row-configured SQLite connection."""
+    target_path = db_path or Config.DB_PATH
+    conn = sqlite3.connect(target_path)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
+# Alias for backwards compatibility with app.py
+get_connection = get_db_connection
 
-def init_db(db_path=DEFAULT_DB):
-    """Initialize database tables if they do not exist."""
-    conn = get_connection(db_path)
-    cursor = conn.cursor()
 
-    # 1. Categories Table
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL
-        )
-        """
-    )
-
-    # 2. Transactions Table
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            type TEXT NOT NULL CHECK(LOWER(type) IN ('income', 'expense')),
-            amount REAL NOT NULL,
-            category_id INTEGER NOT NULL,
-            date TEXT NOT NULL,
-            note TEXT,
-            FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE
-        )
-        """
-    )
-
-    # 3. Budgets Table
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS budgets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category_id INTEGER NOT NULL,
-            month TEXT NOT NULL,
-            limit_amount REAL NOT NULL,
-            UNIQUE(category_id, month),
-            FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE
-        )
-        """
-    )
-
-    conn.commit()
-    conn.close()
+def init_db(db_path=None):
+    """Initialize database schema and seed default categories."""
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS categories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS transactions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    type TEXT NOT NULL,
+                    amount REAL NOT NULL,
+                    category_id INTEGER NOT NULL,
+                    date TEXT NOT NULL,
+                    note TEXT,
+                    FOREIGN KEY(category_id) REFERENCES categories(id)
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS budgets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category_id INTEGER NOT NULL,
+                    month TEXT NOT NULL,
+                    limit_amount REAL NOT NULL,
+                    UNIQUE(category_id, month),
+                    FOREIGN KEY(category_id) REFERENCES categories(id)
+                )
+            """)
+            default_categories = ["Food", "Bills", "Transport", "Entertainment", "Salary", "Other"]
+            for cat in default_categories:
+                conn.execute("INSERT OR IGNORE INTO categories (name) VALUES (?)", (cat,))
+    finally:
+        conn.close()

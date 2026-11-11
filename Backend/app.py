@@ -3,8 +3,15 @@ import calendar
 from datetime import datetime
 from flask import Flask, Response, g, jsonify, request
 from flask_cors import CORS
-from Backend import csv_utils, models
-from Backend.database import get_connection, init_db
+
+# Robust import resolution for both root and Backend execution
+try:
+    from Backend import csv_utils, models
+    from Backend.database import get_connection, init_db
+except ImportError:
+    import csv_utils
+    import models
+    from database import get_connection, init_db
 
 DEFAULT_DB = "expensemate.db"
 
@@ -53,7 +60,7 @@ def create_app(db_path=DEFAULT_DB):
 
     @app.errorhandler(ValueError)
     def bad_request(exc):
-        return jsonify({"error": str(exc)}), 400
+        return jsonify({"error": str(exc), "message": str(exc)}), 400
 
     @app.route("/health")
     @app.route("/api/health")
@@ -140,14 +147,15 @@ def create_app(db_path=DEFAULT_DB):
 
         cleaned = []
         for t in txs:
-            item = dict(t) if isinstance(t, dict) else t
+            item = dict(t) if hasattr(t, "keys") or isinstance(t, dict) else t
             t_type = str(item.get("type", "expense")).lower()
             t_date = item.get("transaction_date") or item.get("date")
             cleaned.append({
                 "id": item.get("id"),
                 "amount": float(item.get("amount") or 0.0),
                 "category": item.get("category"),
-                "description": item.get("description") or "",
+                "description": item.get("description") or item.get("note") or "",
+                "note": item.get("note") or item.get("description") or "",
                 "type": t_type,
                 "transaction_date": t_date,
                 "date": t_date
@@ -274,6 +282,17 @@ def create_app(db_path=DEFAULT_DB):
         if upload is None:
             raise ValueError("no file uploaded (form field name must be 'file')")
         return jsonify(csv_utils.import_csv(conn(), upload.stream))
+
+    # Optional Layer Blueprint Registration
+    try:
+        from Backend.controllers.expense_controller import expense_bp
+        app.register_blueprint(expense_bp)
+    except ImportError:
+        try:
+            from controllers.expense_controller import expense_bp
+            app.register_blueprint(expense_bp)
+        except ImportError:
+            pass
 
     return app
 
